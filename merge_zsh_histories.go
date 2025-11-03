@@ -36,14 +36,13 @@ func main() {
 	files := os.Args[1:]
 	sort.Strings(files)
 
-	// Compile regex patterns
-	multilineRegex := regexp.MustCompile(`\\\n(?!:\s*\d{10,})`)
+	// Compile regex pattern
 	validLineRegex := regexp.MustCompile(`^: \d{10,}:\d+;`)
 
 	for _, histFile := range files {
 		fmt.Fprintf(os.Stderr, "Parsing '%s'\n", histFile)
 
-		if err := processHistoryFile(histFile, multilineCommand, multilineRegex, validLineRegex, commands); err != nil {
+		if err := processHistoryFile(histFile, multilineCommand, validLineRegex, commands); err != nil {
 			log.Fatalf("Error processing %s: %v", histFile, err)
 		}
 	}
@@ -52,7 +51,7 @@ func main() {
 	outputMergedCommands(commands, multilineCommand)
 }
 
-func processHistoryFile(filename, multilineCommand string, multilineRegex, validLineRegex *regexp.Regexp, commands CommandMap) error {
+func processHistoryFile(filename, multilineCommand string, validLineRegex *regexp.Regexp, commands CommandMap) error {
 	file, err := os.Open(filename)
 	if err != nil {
 		return err
@@ -65,26 +64,15 @@ func processHistoryFile(filename, multilineCommand string, multilineRegex, valid
 		return err
 	}
 
-	// Replace multiline command continuations
-	content = multilineRegex.ReplaceAllString(content, multilineCommand)
+	// Replace multiline command continuations (but not those followed by timestamp lines)
+	content = replaceMultilineCommands(content, multilineCommand)
 
-	// Validate all lines follow zsh history format
+	// Process each line, filtering out invalid ones
 	lines := strings.Split(content, "\n")
-	var problematicLines []string
 
 	for _, line := range lines {
-		if line != "" && !validLineRegex.MatchString(line) {
-			problematicLines = append(problematicLines, line)
-		}
-	}
-
-	if len(problematicLines) > 0 {
-		return fmt.Errorf("problem with those lines: %v", problematicLines)
-	}
-
-	// Process each line
-	for _, line := range lines {
-		if line == "" {
+		if line == "" || !validLineRegex.MatchString(line) {
+			// Skip empty lines and invalid lines (like the Ruby version does with scrub)
 			continue
 		}
 
@@ -100,6 +88,36 @@ func processHistoryFile(filename, multilineCommand string, multilineRegex, valid
 	}
 
 	return nil
+}
+
+func replaceMultilineCommands(content, multilineCommand string) string {
+	timestampRegex := regexp.MustCompile(`:\s*\d{10,}`)
+
+	// Use a simple approach: replace all \n that are NOT followed by a timestamp line
+	lines := strings.Split(content, "\n")
+	var result strings.Builder
+
+	for i, line := range lines {
+		if strings.HasSuffix(line, `\`) && i+1 < len(lines) {
+			// Check if the next line starts with a timestamp pattern
+			nextLine := lines[i+1]
+			if !timestampRegex.MatchString(nextLine) {
+				// Replace backslash with our placeholder but keep building the line
+				result.WriteString(strings.TrimSuffix(line, `\`))
+				result.WriteString(multilineCommand)
+			} else {
+				result.WriteString(line)
+				result.WriteString("\n")
+			}
+		} else {
+			result.WriteString(line)
+			if i < len(lines)-1 { // Don't add newline after last line
+				result.WriteString("\n")
+			}
+		}
+	}
+
+	return result.String()
 }
 
 func readFileContent(file *os.File) (string, error) {
@@ -134,12 +152,12 @@ func parseHistoryLine(line string) (HistoryEntry, error) {
 		return HistoryEntry{}, fmt.Errorf("invalid timestamp format")
 	}
 
-	timestamp, err := strconv.ParseInt(timeParts[1], 10, 64)
+	timestamp, err := strconv.ParseInt(strings.TrimSpace(timeParts[1]), 10, 64)
 	if err != nil {
 		return HistoryEntry{}, fmt.Errorf("invalid timestamp: %v", err)
 	}
 
-	duration, err := strconv.Atoi(timeParts[2])
+	duration, err := strconv.Atoi(strings.TrimSpace(timeParts[2]))
 	if err != nil {
 		return HistoryEntry{}, fmt.Errorf("invalid duration: %v", err)
 	}

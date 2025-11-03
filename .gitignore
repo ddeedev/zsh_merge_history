@@ -1,3 +1,6 @@
 *.bak
 .zsh_history
 merged_zsh_history
+merge_zsh_histories
+merged_zsh_history_go
+merged_zsh_history_ruby
