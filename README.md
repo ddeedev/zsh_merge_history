@@ -143,14 +143,43 @@ echo "Uncompressed files: $(find . -name "zsh_history_*.bak" | wc -l)"
 - 452 files compressed, 59 recent files kept uncompressed
 - Average compression ratio: ~80%
 
-### Backup Verification
+### Backup Verification and Decompression
+
+#### Safe History Validation
+```bash
+# Automatically backup current history and validate system
+./validate_history.sh
+
+# Validate current history without making changes
+./validate_history.sh -v
+
+# Decompress and validate a specific backup file
+./validate_history.sh -f zsh_history_2023_01_01.bak.gz
+
+# Decompress and validate ALL compressed files (use with caution)
+./validate_history.sh -a
+```
+
+#### Manual Verification
 ```bash
 # Check your backup collection
 ls -la ~/backups/zsh_history_*.bak | tail -10
 
-# Verify backup integrity
-head -5 ~/backups/zsh_history_$(date +\%Y_\%m_\%d).bak
+# Test compressed file integrity
+gzip -t zsh_history_2023_01_01.bak.gz && echo "File is valid"
+
+# Quick decompress to check content (doesn't overwrite original)
+gzip -dc zsh_history_2023_01_01.bak.gz | head -5
 ```
+
+#### Safety Features of validate_history.sh
+- ✅ **Automatic backup** of current ~/.zsh_history before any operations
+- ✅ **File integrity testing** before decompression
+- ✅ **Format validation** with detailed statistics
+- ✅ **UTF-8 encoding checks** and issue reporting
+- ✅ **Timestamp range analysis** for extended_history format
+- ✅ **Temporary file handling** - original files never modified
+- ✅ **Comprehensive reporting** of file contents and potential issues
 
 ## Step-by-Step History Restoration
 
@@ -168,18 +197,26 @@ wc -l ~/.zsh_history
 tail -10 ~/.zsh_history
 ```
 
-#### Step 2: Verify Your Backups Exist
+#### Step 2: Verify and Decompress Your Backups
 ```bash
+# Quick system overview and automatic backup of current history
+./validate_history.sh
+
 # List your backup files
 ls -la ~/backups/zsh_history_*.bak
 
-# Check how many commands are in recent backups
-wc -l ~/backups/zsh_history_*.bak | tail -5
+# If you have compressed files, decompress recent ones for merging
+./validate_history.sh -f zsh_history_2025_10_01.bak.gz
+./validate_history.sh -f zsh_history_2025_10_15.bak.gz
+./validate_history.sh -f zsh_history_2025_11_01.bak.gz
+
+# Or decompress all files (use carefully with large collections)
+# ./validate_history.sh -a
 ```
 
 #### Step 3: Create a Safety Backup
 ```bash
-# Backup the current (possibly truncated) history
+# The validation script already backs up current history, but you can create additional backups
 cp ~/.zsh_history ~/.zsh_history.truncated.$(date +%Y%m%d_%H%M%S)
 
 # Create a working directory
@@ -396,6 +433,52 @@ Alternative backup methods:
 
 # Using anacron for laptops that aren't always on
 @daily cp ~/.zsh_history ~/backups/zsh_history_$(date +\%Y_\%m_\%d).bak
+```
+
+## Backup Management Tools
+
+### Cleanup and Maintenance
+
+After working with backups, you may need to clean up temporary files:
+
+```bash
+# Clean up decompressed files (keeps .gz originals)
+./cleanup_backups.sh -d
+
+# Remove temporary backup files created by validation
+./cleanup_backups.sh -t
+
+# Remove old backup files (older than 30 days)
+./cleanup_backups.sh -o --days 30
+
+# Clean everything with confirmation
+./cleanup_backups.sh -a
+
+# Dry run to see what would be cleaned
+./cleanup_backups.sh -a -n
+```
+
+### Complete Workflow Example
+
+```bash
+# 1. Backup and validate current state
+./validate_history.sh
+
+# 2. Decompress specific files you want to merge
+./validate_history.sh -f zsh_history_2025_10_01.bak.gz
+./validate_history.sh -f zsh_history_2025_11_01.bak.gz
+
+# 3. Merge histories
+go run merge_zsh_histories.go zsh_history_*.bak ~/.zsh_history
+
+# 4. Clean up decompressed files
+./cleanup_backups.sh -d -y
+
+# 5. Compress old backups to save space
+./compress_backups.sh
+
+# 6. Clean up any remaining temporary files
+./cleanup_backups.sh -t -y
 ```
 
 ## Evolution from Original Solution
