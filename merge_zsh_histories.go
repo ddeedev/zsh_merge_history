@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // HistoryEntry represents a zsh history command with timestamp and duration
@@ -72,7 +73,6 @@ func processHistoryFile(filename, multilineCommand string, validLineRegex *regex
 
 	for _, line := range lines {
 		if line == "" || !validLineRegex.MatchString(line) {
-			// Skip empty lines and invalid lines (like the Ruby version does with scrub)
 			continue
 		}
 
@@ -133,7 +133,25 @@ func readFileContent(file *os.File) (string, error) {
 		return "", err
 	}
 
-	return content.String(), nil
+	return invalidUTF8(content.String()), nil
+}
+
+func invalidUTF8(s string) string {
+	if utf8.ValidString(s) {
+		return s
+	}
+
+	var result strings.Builder
+	for len(s) > 0 {
+		r, size := utf8.DecodeRuneInString(s)
+		if r == utf8.RuneError && size == 1 {
+			result.WriteRune('#')
+		} else {
+			result.WriteRune(r)
+		}
+		s = s[size:]
+	}
+	return result.String()
 }
 
 func parseHistoryLine(line string) (HistoryEntry, error) {
