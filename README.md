@@ -120,6 +120,29 @@ Before using the merge tools, establish a backup routine:
 alias pre-update='cp ~/.zsh_history ~/backups/zsh_history_pre_update_$(date +\%Y_\%m_\%d).bak'
 ```
 
+### Backup Compression Strategy
+
+Once you have a collection of backup files, compress older files to save space:
+
+```bash
+# Compress files older than 90 days (saves ~80% space)
+find . -name "zsh_history_*.bak" -mtime +90 -exec gzip {} \;
+
+# Check compression results
+echo "Compressed files: $(find . -name "*.bak.gz" | wc -l)"
+echo "Uncompressed files: $(find . -name "zsh_history_*.bak" | wc -l)"
+
+# Enhanced cron job with automatic compression
+# Add to crontab -e:
+30 14 * * * cp ~/.zsh_history ~/backups/zsh_history_$(date +\%Y_\%m_\%d).bak && find ~/backups -name "zsh_history_*.bak" -mtime +90 -exec gzip {} \;
+```
+
+**Space Savings Example:**
+- Original: 289 MB across 511 files
+- After compression: 95 MB (67% reduction)
+- 452 files compressed, 59 recent files kept uncompressed
+- Average compression ratio: ~80%
+
 ### Backup Verification
 ```bash
 # Check your backup collection

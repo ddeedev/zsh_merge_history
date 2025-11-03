@@ -1,4 +1,5 @@
 *.bak
+*.gz
 .zsh_history
 merged_zsh_history
 merge_zsh_histories
