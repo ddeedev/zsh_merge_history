@@ -1,0 +1,3 @@
+*.bak
+.zsh_history
+merged_zsh_history
